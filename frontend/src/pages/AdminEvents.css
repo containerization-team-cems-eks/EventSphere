@@ -49,3 +49,113 @@ th {
   padding: 5px 10px;
   font-size: 14px;
 }
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.schedule-row td {
+  background: #f9fafb;
+}
+
+.schedule-panel {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 24px;
+  background: #ffffff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.schedule-panel h3 {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.schedule-list {
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.schedule-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 16px;
+  background: #fdfdfd;
+}
+
+.schedule-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.schedule-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.schedule-range {
+  color: #4b5563;
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.schedule-details p {
+  margin: 6px 0 0;
+  color: #374151;
+}
+
+.schedule-description {
+  color: #4b5563;
+}
+
+.schedule-form {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.schedule-form h4 {
+  margin: 0 0 4px;
+}
+
+.schedule-form textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.schedule-form-grid {
+  display: grid;
+  gap: 12px;
+}
+
+@media (min-width: 768px) {
+  .schedule-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.field-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  color: #374151;
+}
+
+.schedule-form-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.empty-state {
+  color: #6b7280;
+}

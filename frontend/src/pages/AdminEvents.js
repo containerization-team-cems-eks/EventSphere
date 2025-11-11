@@ -18,6 +18,20 @@ function AdminEvents() {
     organizer: '',
     imageUrl: ''
   });
+  const createEmptyScheduleForm = () => ({
+    title: '',
+    description: '',
+    speaker: '',
+    location: '',
+    startTime: '',
+    endTime: ''
+  });
+  const [expandedEventId, setExpandedEventId] = useState(null);
+  const [schedules, setSchedules] = useState({});
+  const [loadingSchedules, setLoadingSchedules] = useState(false);
+  const [scheduleFormData, setScheduleFormData] = useState(() => createEmptyScheduleForm());
+  const [editingScheduleId, setEditingScheduleId] = useState(null);
+  const [savingSchedule, setSavingSchedule] = useState(false);
 
   useEffect(() => {
     fetchEvents();
@@ -30,6 +44,149 @@ function AdminEvents() {
     } catch (err) {
       console.error('Error fetching events:', err);
     }
+  };
+
+  const fetchSchedules = async (eventId) => {
+    try {
+      setLoadingSchedules(true);
+      const response = await axios.get(`${API_CONFIG.event}/schedules`, {
+        params: { eventId }
+      });
+      setSchedules((prev) => ({
+        ...prev,
+        [eventId]: response.data
+      }));
+    } catch (err) {
+      console.error('Error fetching schedules:', err);
+      alert('Failed to load schedules. Please try again.');
+    } finally {
+      setLoadingSchedules(false);
+    }
+  };
+
+  const toDateTimeLocalValue = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    const tzOffset = date.getTimezoneOffset();
+    const localDate = new Date(date.getTime() - tzOffset * 60000);
+    return localDate.toISOString().slice(0, 16);
+  };
+
+  const resetScheduleForm = () => {
+    setScheduleFormData(createEmptyScheduleForm());
+    setEditingScheduleId(null);
+  };
+
+  const toggleSchedulePanel = async (eventId) => {
+    if (expandedEventId === eventId) {
+      setExpandedEventId(null);
+      resetScheduleForm();
+      return;
+    }
+
+    await fetchSchedules(eventId);
+    setExpandedEventId(eventId);
+    resetScheduleForm();
+  };
+
+  const handleScheduleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!expandedEventId) {
+      alert('Please select an event to manage schedules.');
+      return;
+    }
+
+    if (!scheduleFormData.startTime || !scheduleFormData.endTime) {
+      alert('Start and end time are required.');
+      return;
+    }
+
+    if (new Date(scheduleFormData.endTime) <= new Date(scheduleFormData.startTime)) {
+      alert('End time must be after the start time.');
+      return;
+    }
+
+    try {
+      setSavingSchedule(true);
+      const token = localStorage.getItem('token');
+      const payload = {
+        title: scheduleFormData.title,
+        description: scheduleFormData.description,
+        speaker: scheduleFormData.speaker,
+        location: scheduleFormData.location,
+        startTime: new Date(scheduleFormData.startTime).toISOString(),
+        endTime: new Date(scheduleFormData.endTime).toISOString(),
+        eventId: expandedEventId
+      };
+
+      if (editingScheduleId) {
+        await axios.put(
+          `${API_CONFIG.event}/schedules/${editingScheduleId}`,
+          payload,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        alert('Schedule updated successfully!');
+      } else {
+        await axios.post(
+          `${API_CONFIG.event}/schedules`,
+          payload,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        alert('Schedule created successfully!');
+      }
+
+      resetScheduleForm();
+      await fetchSchedules(expandedEventId);
+    } catch (err) {
+      console.error('Error saving schedule:', err);
+      alert(err.response?.data?.error || 'Failed to save schedule');
+    } finally {
+      setSavingSchedule(false);
+    }
+  };
+
+  const handleScheduleEdit = (eventId, schedule) => {
+    setExpandedEventId(eventId);
+    setEditingScheduleId(schedule._id);
+    setScheduleFormData({
+      title: schedule.title || '',
+      description: schedule.description || '',
+      speaker: schedule.speaker || '',
+      location: schedule.location || '',
+      startTime: toDateTimeLocalValue(schedule.startTime),
+      endTime: toDateTimeLocalValue(schedule.endTime)
+    });
+  };
+
+  const handleScheduleDelete = async (scheduleId) => {
+    if (!expandedEventId) return;
+
+    if (!window.confirm('Delete this schedule item?')) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`${API_CONFIG.event}/schedules/${scheduleId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert('Schedule deleted successfully.');
+      await fetchSchedules(expandedEventId);
+    } catch (err) {
+      console.error('Error deleting schedule:', err);
+      alert('Failed to delete schedule');
+    }
+  };
+
+  const formatScheduleRange = (schedule) => {
+    const start = new Date(schedule.startTime).toLocaleString([], {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    });
+    const end = new Date(schedule.endTime).toLocaleString([], {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    });
+    return `${start} - ${end}`;
   };
 
   const handleSubmit = async (e) => {
@@ -187,15 +344,147 @@ function AdminEvents() {
                 <td>{event.capacity}</td>
                 <td>{event.availableSeats}</td>
                 <td>₹{event.price}</td>
-                <td>
-                  <button 
+                <td className="action-buttons">
+                  <button
+                    onClick={() => toggleSchedulePanel(event._id)}
+                    className="btn btn-secondary btn-sm"
+                    type="button"
+                  >
+                    {expandedEventId === event._id ? 'Hide Schedules' : 'Manage Schedules'}
+                  </button>
+                  <button
                     onClick={() => handleDelete(event._id)}
                     className="btn btn-danger btn-sm"
+                    type="button"
                   >
                     Delete
                   </button>
                 </td>
               </tr>
+              {expandedEventId === event._id && (
+                <tr className="schedule-row">
+                  <td colSpan="7">
+                    <div className="schedule-panel">
+                      <h3>Schedules for {event.title}</h3>
+                      {loadingSchedules ? (
+                        <p>Loading schedules...</p>
+                      ) : (
+                        <>
+                          {schedules[event._id] && schedules[event._id].length > 0 ? (
+                            <ul className="schedule-list">
+                              {schedules[event._id].map((schedule) => (
+                                <li key={schedule._id} className="schedule-item">
+                                  <div className="schedule-item-header">
+                                    <div>
+                                      <strong>{schedule.title}</strong>
+                                      <div className="schedule-range">{formatScheduleRange(schedule)}</div>
+                                    </div>
+                                    <div className="schedule-actions">
+                                      <button
+                                        type="button"
+                                        className="btn btn-light btn-sm"
+                                        onClick={() => handleScheduleEdit(event._id, schedule)}
+                                      >
+                                        Edit
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="btn btn-danger btn-sm"
+                                        onClick={() => handleScheduleDelete(schedule._id)}
+                                      >
+                                        Delete
+                                      </button>
+                                    </div>
+                                  </div>
+                                  {(schedule.speaker || schedule.location || schedule.description) && (
+                                    <div className="schedule-details">
+                                      {schedule.speaker && (
+                                        <p><strong>Speaker:</strong> {schedule.speaker}</p>
+                                      )}
+                                      {schedule.location && (
+                                        <p><strong>Location:</strong> {schedule.location}</p>
+                                      )}
+                                      {schedule.description && (
+                                        <p className="schedule-description">{schedule.description}</p>
+                                      )}
+                                    </div>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="empty-state">No schedules yet. Create one below.</p>
+                          )}
+                        </>
+                      )}
+
+                      <form onSubmit={handleScheduleSubmit} className="schedule-form">
+                        <h4>{editingScheduleId ? 'Edit schedule item' : 'Add a schedule item'}</h4>
+                        <input
+                          type="text"
+                          placeholder="Session title"
+                          value={scheduleFormData.title}
+                          onChange={(e) => setScheduleFormData({ ...scheduleFormData, title: e.target.value })}
+                          required
+                        />
+                        <textarea
+                          placeholder="Description (optional)"
+                          value={scheduleFormData.description}
+                          onChange={(e) => setScheduleFormData({ ...scheduleFormData, description: e.target.value })}
+                        />
+                        <div className="schedule-form-grid">
+                          <input
+                            type="text"
+                            placeholder="Speaker (optional)"
+                            value={scheduleFormData.speaker}
+                            onChange={(e) => setScheduleFormData({ ...scheduleFormData, speaker: e.target.value })}
+                          />
+                          <input
+                            type="text"
+                            placeholder="Location (optional)"
+                            value={scheduleFormData.location}
+                            onChange={(e) => setScheduleFormData({ ...scheduleFormData, location: e.target.value })}
+                          />
+                        </div>
+                        <div className="schedule-form-grid">
+                          <label className="field-label">
+                            <span>Start time</span>
+                            <input
+                              type="datetime-local"
+                              value={scheduleFormData.startTime}
+                              onChange={(e) => setScheduleFormData({ ...scheduleFormData, startTime: e.target.value })}
+                              required
+                            />
+                          </label>
+                          <label className="field-label">
+                            <span>End time</span>
+                            <input
+                              type="datetime-local"
+                              value={scheduleFormData.endTime}
+                              onChange={(e) => setScheduleFormData({ ...scheduleFormData, endTime: e.target.value })}
+                              required
+                            />
+                          </label>
+                        </div>
+                        <div className="schedule-form-actions">
+                          <button type="submit" className="btn btn-success" disabled={savingSchedule}>
+                            {savingSchedule ? 'Saving…' : editingScheduleId ? 'Update Schedule' : 'Create Schedule'}
+                          </button>
+                          {editingScheduleId && (
+                            <button
+                              type="button"
+                              className="btn btn-light"
+                              onClick={resetScheduleForm}
+                            >
+                              Cancel
+                            </button>
+                          )}
+                        </div>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              )}
             ))}
           </tbody>
         </table>

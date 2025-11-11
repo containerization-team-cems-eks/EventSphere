@@ -8,15 +8,19 @@ EventSphere is a microservice-based event management platform. The repository co
 ## Features
 - User authentication with JWT-based sessions
 - Event browsing, search, and category filtering
+- Detailed event schedules with session-level management
+- RSVP tracking for attendees with status updates
 - Ticket booking workflow with simulated payments
 - Booking management including history and cancellations
 - Administrative tooling for event creation and analytics
+- Notification service that can dispatch reminders via AWS SNS
 
 ## Service Overview
 The system is composed of the following independently running services:
 - **Auth Service** (port 4001) – manages user accounts and tokens
-- **Event Service** (port 4002) – handles CRUD operations for events
+- **Event Service** (port 4002) – handles CRUD operations for events, schedules, and RSVPs
 - **Booking Service** (port 4003) – coordinates ticket reservations
+- **Notification Service** (port 4004) – sends email/SMS reminders using AWS SNS (mocked locally by default)
 - **Frontend** (port 3000) – React single-page application that consumes the APIs above
 
 All services communicate over HTTP and store data in MongoDB. Ensure that a MongoDB instance is running locally and that each service's `.env` file points to it.
@@ -92,6 +96,22 @@ The React development server will proxy API requests to the backend services whe
 2. Use the **Create Event** button to open the event form. Fill in title, description, category, venue, date, time, capacity, price, organizer, and an optional image URL.
 3. Submit the form to persist the event through the event-service (`POST /api/events`). A success toast appears and the events table refreshes with the new entry.
 4. Use the table's **Delete** button to remove events (`DELETE /api/events/:id`).
+
+### Managing event schedules
+1. Use the event-service admin endpoints to create agenda items for each event.
+2. Issue a `POST /api/schedules` request that includes the `eventId`, `title`, `startTime`, and `endTime` for each session. Optional fields such as `speaker`, `location`, and `description` provide additional context for attendees.
+3. Update existing items with `PUT /api/schedules/:id` or delete them with `DELETE /api/schedules/:id`. All schedule endpoints require an administrator token.
+4. Public consumers can retrieve the agenda for a specific event by calling `GET /api/schedules?eventId=<eventId>`.
+
+### Tracking RSVPs
+1. Authenticated attendees can RSVP to an event by submitting `POST /api/rsvps` with the `eventId`, desired `status`, and optional guest count.
+2. The service automatically upserts the RSVP so repeated submissions update the existing record rather than duplicating entries.
+3. Attendees may adjust or cancel their response using `PUT /api/rsvps/:id` or `DELETE /api/rsvps/:id`. Administrators can view all RSVPs for reporting purposes by calling `GET /api/rsvps?eventId=<eventId>`.
+
+### Sending notifications
+1. Start the notification-service and ensure the required AWS credentials are configured if you want to publish to SNS.
+2. Call `POST /api/notifications/reminders` with a message body and either a `phoneNumber` or `topicArn` to dispatch SMS or email/topic notifications, respectively.
+3. Local development defaults to mock mode (`USE_MOCK_SNS=true`), which logs messages without contacting AWS so the API can be exercised without credentials.
 
 ### Booking events as an attendee
 1. Register or log in from the navbar.

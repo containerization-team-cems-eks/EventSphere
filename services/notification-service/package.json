@@ -1,0 +1,25 @@
+{
+  "name": "notification-service",
+  "version": "1.0.0",
+  "description": "Notification microservice for EventSphere",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "license": "ISC",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "echo \"Add tests later\" && exit 0"
+  },
+  "engines": {
+    "node": ">=25.1.0"
+  },
+  "dependencies": {
+    "@aws-sdk/client-sns": "^3.744.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}

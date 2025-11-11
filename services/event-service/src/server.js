@@ -4,6 +4,8 @@ const cors = require('cors');
 require('dotenv').config();
 
 const eventRoutes = require('./routes/events');
+const scheduleRoutes = require('./routes/schedules');
+const rsvpRoutes = require('./routes/rsvps');
 
 const app = express();
 
@@ -23,6 +25,8 @@ app.use(express.json());
 
 // Routes
 app.use('/api/events', eventRoutes);
+app.use('/api/schedules', scheduleRoutes);
+app.use('/api/rsvps', rsvpRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
