@@ -84,8 +84,8 @@ jobs:
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo "tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
           else
-            # Use latest tag for main branch deployments
-            echo "tag=latest" >> $GITHUB_OUTPUT
+            # Use commit SHA for deployments (matches build workflow)
+            echo "tag=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_OUTPUT
           fi
 
       - name: Get AWS Account ID

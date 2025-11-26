@@ -55,25 +55,8 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo "tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event.workflow_run.event }}" == "pull_request" ]; then
-            # For PRs triggered via workflow_run, try to get PR number from the workflow run
-            # The build workflow uses pr-{number} format
-            # Try to extract from workflow run name or use API
-            HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
-            # Query GitHub API for PR associated with this commit
-            PR_NUMBER=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-              "https://api.github.com/repos/${{ github.repository }}/commits/${HEAD_SHA}/pulls" | \
-              jq -r 'if type == "array" and length > 0 then .[0].number else empty end' 2>/dev/null || echo "")
-            if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
-              echo "tag=pr-${PR_NUMBER}" >> $GITHUB_OUTPUT
-            else
-              # Fallback: use head_sha (build workflow might have used this)
-              echo "tag=${HEAD_SHA}" >> $GITHUB_OUTPUT
-            fi
-          elif [ "${{ github.event.workflow_run.head_branch }}" == "main" ]; then
-            echo "tag=latest" >> $GITHUB_OUTPUT
           else
-            # Use commit SHA as fallback
+            # Use commit SHA for all builds (matches build workflow)
             echo "tag=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_OUTPUT
           fi
 

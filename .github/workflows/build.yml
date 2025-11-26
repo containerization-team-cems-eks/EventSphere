@@ -57,11 +57,13 @@ jobs:
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo "tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
           elif [ "${{ github.event_name }}" == "pull_request" ]; then
-            echo "tag=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+            # Use commit SHA for PRs
+            echo "tag=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
           elif [ "${{ github.event.workflow_run.event }}" == "pull_request" ]; then
             echo "tag=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_OUTPUT
           elif [ "${{ github.event.workflow_run.head_branch }}" == "main" ]; then
-            echo "tag=latest" >> $GITHUB_OUTPUT
+            # Use commit SHA for main branch (or can be changed to 'latest' if preferred)
+            echo "tag=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_OUTPUT
           else
             echo "tag=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_OUTPUT
           fi
@@ -105,10 +107,10 @@ jobs:
           ECR_REGISTRY="${{ steps.login-ecr.outputs.registry }}"
           IMAGE_PREFIX="${{ steps.image-prefix.outputs.prefix }}"
           IMAGE_TAG="${{ steps.set-tag.outputs.tag }}"
-          echo "auth-service=$ECR_REGISTRY/$IMAGE_PREFIX/auth-service:$IMAGE_TAG $ECR_REGISTRY/$IMAGE_PREFIX/auth-service:latest" >> $GITHUB_OUTPUT
-          echo "event-service=$ECR_REGISTRY/$IMAGE_PREFIX/event-service:$IMAGE_TAG $ECR_REGISTRY/$IMAGE_PREFIX/event-service:latest" >> $GITHUB_OUTPUT
-          echo "booking-service=$ECR_REGISTRY/$IMAGE_PREFIX/booking-service:$IMAGE_TAG $ECR_REGISTRY/$IMAGE_PREFIX/booking-service:latest" >> $GITHUB_OUTPUT
-          echo "frontend=$ECR_REGISTRY/$IMAGE_PREFIX/frontend:$IMAGE_TAG $ECR_REGISTRY/$IMAGE_PREFIX/frontend:latest" >> $GITHUB_OUTPUT
+          echo "auth-service=$ECR_REGISTRY/$IMAGE_PREFIX/auth-service:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "event-service=$ECR_REGISTRY/$IMAGE_PREFIX/event-service:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "booking-service=$ECR_REGISTRY/$IMAGE_PREFIX/booking-service:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "frontend=$ECR_REGISTRY/$IMAGE_PREFIX/frontend:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -121,7 +123,6 @@ jobs:
           push: true
           tags: |
             ${{ env.GHCR_REGISTRY }}/${{ steps.image-prefix.outputs.prefix }}/auth-service:${{ steps.set-tag.outputs.tag }}
-            ${{ env.GHCR_REGISTRY }}/${{ steps.image-prefix.outputs.prefix }}/auth-service:latest
             ${{ steps.ecr-tags.outputs.auth-service }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -135,7 +136,6 @@ jobs:
           push: true
           tags: |
             ${{ env.GHCR_REGISTRY }}/${{ steps.image-prefix.outputs.prefix }}/event-service:${{ steps.set-tag.outputs.tag }}
-            ${{ env.GHCR_REGISTRY }}/${{ steps.image-prefix.outputs.prefix }}/event-service:latest
             ${{ steps.ecr-tags.outputs.event-service }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -149,7 +149,6 @@ jobs:
           push: true
           tags: |
             ${{ env.GHCR_REGISTRY }}/${{ steps.image-prefix.outputs.prefix }}/booking-service:${{ steps.set-tag.outputs.tag }}
-            ${{ env.GHCR_REGISTRY }}/${{ steps.image-prefix.outputs.prefix }}/booking-service:latest
             ${{ steps.ecr-tags.outputs.booking-service }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -163,7 +162,6 @@ jobs:
           push: true
           tags: |
             ${{ env.GHCR_REGISTRY }}/${{ steps.image-prefix.outputs.prefix }}/frontend:${{ steps.set-tag.outputs.tag }}
-            ${{ env.GHCR_REGISTRY }}/${{ steps.image-prefix.outputs.prefix }}/frontend:latest
             ${{ steps.ecr-tags.outputs.frontend }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

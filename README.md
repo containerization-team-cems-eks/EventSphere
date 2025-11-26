@@ -176,8 +176,7 @@ Security Scan → Build → Deploy to Staging → Deploy to Production
      - **GHCR (GitHub Container Registry)**: Always pushes - required for all deployments
      - **ECR (Amazon ECR)**: Optional - pushes if `AWS_ROLE_ARN` secret is configured
      - Build never fails if ECR is unavailable (graceful degradation)
-   - On PRs: Tags images as `pr-{number}`
-   - On main: Tags images as `latest`
+   - Tags images with commit SHA (consistent across PRs and main branch)
    - Runs security scans on built images (Trivy)
 
 3. **Deploy to Staging** (`deploy-test.yml`) - **FREE, No AWS Required!**
@@ -215,7 +214,7 @@ Security Scan → Build → Deploy to Staging → Deploy to Production
 ┌─────────────┐
 │ Build & Push│ ◄─── Pushes to GHCR (always)
 │             │      Optionally pushes to ECR
-│ pr-{number} │      (won't fail if ECR unavailable)
+│ commit SHA  │      (won't fail if ECR unavailable)
 └──────┬──────┘
        │
        ▼
@@ -240,7 +239,7 @@ Security Scan → Build → Deploy to Staging → Deploy to Production
 ┌─────────────┐
 │ Build & Push│ ◄─── Pushes to GHCR + ECR (if configured)
 │             │
-│   latest    │
+│ commit SHA  │
 └──────┬──────┘
        │
        ▼
@@ -275,7 +274,7 @@ Security Scan → Build → Deploy to Staging → Deploy to Production
 ```bash
 # Create a PR - the following runs automatically:
 # 1. Security Scan → validates code security
-# 2. Build → builds and pushes images to GHCR (tagged as pr-{number})
+# 2. Build → builds and pushes images to GHCR (tagged with commit SHA)
 #           Optionally pushes to ECR if configured
 # 3. Deploy to Staging → tests deployment in kind cluster
 # All checks must pass before PR can be merged
@@ -285,7 +284,7 @@ Security Scan → Build → Deploy to Staging → Deploy to Production
 ```bash
 # Merge PR to main - the following runs automatically:
 # 1. Security Scan → validates code security
-# 2. Build → builds and pushes images to GHCR + ECR (tagged as latest)
+# 2. Build → builds and pushes images to GHCR + ECR (tagged with commit SHA)
 # 3. Deploy to Staging → final validation in kind cluster
 # 4. Deploy to Production → automatic deployment to EKS (if staging succeeds)
 ```
