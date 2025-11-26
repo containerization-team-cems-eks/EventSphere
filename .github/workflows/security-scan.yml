@@ -21,16 +21,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Trivy
-        uses: aquasecurity/setup-trivy@v1
-        with:
-          trivy-version: 'latest'
+      - name: Install Trivy
+        run: |
+          sudo apt-get update
+          sudo apt-get install wget apt-transport-https gnupg lsb-release -y
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+          echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install trivy -y
+          trivy --version
 
       - name: Run Trivy filesystem scan (show vulnerabilities)
         id: trivy-fs-table
         continue-on-error: true
         run: |
-          echo "🔍 Running Trivy filesystem scan - showing CRITICAL vulnerabilities..."
+          echo "Running Trivy filesystem scan - showing CRITICAL vulnerabilities..."
           echo "=========================================="
           trivy fs . --severity CRITICAL --format table --exit-code 0 || true
           echo "=========================================="
@@ -58,7 +63,7 @@ jobs:
         id: trivy-config-table
         continue-on-error: true
         run: |
-          echo "🔍 Running Trivy config scan - showing CRITICAL vulnerabilities..."
+          echo "Running Trivy config scan - showing CRITICAL vulnerabilities..."
           echo "Note: RBAC files (k8s/base/rbac.yaml) excluded from scan"
           echo "  Reason: Intentionally permissive roles for class project demonstration"
           echo "  These roles demonstrate RBAC concepts (admin, developer, operator)"
