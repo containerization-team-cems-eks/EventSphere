@@ -49,8 +49,8 @@ EventSphere/
 │   └── workflows/               # GitHub Actions
 │       ├── security-scan.yml    # Security scanning workflow
 │       ├── build.yml            # Build and push Docker images
-│       ├── deploy-test.yml      # Automated deployment testing (kind)
-│       └── deploy.yml           # Production EKS deployment (manual only, not in pipeline)
+│       ├── deploy-test.yml      # Deploy to Staging (kind cluster)
+│       └── deploy.yml           # Deploy to Production (EKS)
 └── README.md
 ```
 
@@ -137,7 +137,25 @@ Each service currently includes placeholder npm test scripts. Extend these as ne
 
 ## CI/CD Pipeline
 
-EventSphere includes automated CI/CD workflows using GitHub Actions. The pipeline provides security scanning, automated builds, and deployment capabilities.
+EventSphere includes automated CI/CD workflows using GitHub Actions following industry-standard practices. The pipeline provides security scanning, automated builds, staging validation, and production deployment.
+
+### Pipeline Flow
+
+#### On Pull Requests (Continuous Integration)
+```
+Security Scan → Build → Deploy to Staging
+```
+- Validates code quality and security
+- Builds and tests Docker images
+- Tests deployment in staging environment (kind cluster)
+
+#### On Main Branch (Continuous Deployment)
+```
+Security Scan → Build → Deploy to Staging → Deploy to Production
+```
+- Full validation pipeline
+- Automatic deployment to production EKS after staging succeeds
+- Production deployment only runs on main branch
 
 ### Available Workflows
 
@@ -154,61 +172,130 @@ EventSphere includes automated CI/CD workflows using GitHub Actions. The pipelin
    - **Runs after security scan passes** - Only builds if code is secure
    - **Path filtered** - Only runs when code in `services/`, `frontend/`, or workflow files change
    - Builds Docker images for all 4 services (auth, event, booking, frontend)
-   - Pushes images to GitHub Container Registry (GHCR) - free, no AWS needed
-   - Runs security scans on built images (additional layer of protection)
+   - **Dual Registry Support**:
+     - **GHCR (GitHub Container Registry)**: Always pushes - required for all deployments
+     - **ECR (Amazon ECR)**: Optional - pushes if `AWS_ROLE_ARN` secret is configured
+     - Build never fails if ECR is unavailable (graceful degradation)
+   - On PRs: Tags images as `pr-{number}`
+   - On main: Tags images as `latest`
+   - Runs security scans on built images (Trivy)
 
-3. **Test Deployment** (`deploy-test.yml`) - **FREE, No AWS Required!**
-   - **Primary CI/CD deployment** - Runs automatically after successful builds
-   - Uses kind (Kubernetes in Docker) to create temporary cluster
+3. **Deploy to Staging** (`deploy-test.yml`) - **FREE, No AWS Required!**
+   - **Runs automatically after successful builds**
+   - Uses kind (Kubernetes in Docker) to create temporary staging cluster
    - Validates Kubernetes manifests, deploys services, runs health checks
+   - Tests deployment structure and service startup
    - Automatically tears down cluster after testing
    - **Cost: $0** - Meets CI/CD deployment requirement without AWS costs
+   - **Purpose**: Staging environment validation before production
 
-4. **Deploy to EKS** (`deploy.yml`) - **Production Option (Manual Only)**
-   - **Manual trigger only** - Does NOT run automatically in pipeline
-   - Demonstrates production EKS deployment workflow
+4. **Deploy to Production** (`deploy.yml`) - **EKS Production Deployment**
+   - **Runs automatically on main branch** after staging deployment succeeds
+   - Can also be triggered manually for other environments (staging, dev)
+   - Deploys to AWS EKS production cluster
    - Processes Kubernetes templates, updates image tags, applies manifests
    - Includes automatic rollback on failure
    - **Requires AWS infrastructure** (EKS cluster)
-   - **Use case**: Production deployment when AWS infrastructure is available
+   - **Safety**: Only auto-deploys after staging validation passes
+
+### Pipeline Flow Diagram
+
+#### Pull Request Flow (CI)
+```
+┌─────────────┐
+│  Code Push  │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│Security Scan│ ◄─── Must pass (blocks if fails)
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│ Build & Push│ ◄─── Pushes to GHCR (always)
+│             │      Optionally pushes to ECR
+│ pr-{number} │      (won't fail if ECR unavailable)
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│Deploy Stage│ ◄─── Tests in kind cluster
+│  (kind)    │      Validates deployment
+└─────────────┘
+```
+
+#### Main Branch Flow (CD)
+```
+┌─────────────┐
+│Merge to Main│
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│Security Scan│
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│ Build & Push│ ◄─── Pushes to GHCR + ECR (if configured)
+│             │
+│   latest    │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│Deploy Stage│ ◄─── Final validation
+│  (kind)    │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│Deploy Prod │ ◄─── AUTO-DEPLOYS to EKS!
+│   (EKS)    │      Only if staging succeeds
+└─────────────┘
+```
+
+### Image Registry Strategy
+
+- **GHCR (GitHub Container Registry)**: 
+  - ✅ Always used - required for all deployments
+  - ✅ Free - no AWS costs
+  - ✅ Works for staging and production
+  
+- **ECR (Amazon ECR)**: 
+  - ⚙️ Optional - only if `AWS_ROLE_ARN` secret is configured
+  - ⚙️ Won't fail build if unavailable
+  - ⚙️ Useful for production deployments preferring ECR
+  - ⚙️ Requires AWS infrastructure setup
 
 ### Quick Start - CI/CD
 
-**Test Security Scan (Works Immediately):**
+**On Pull Requests:**
 ```bash
-# Just push any change
-git push origin main
-# Check Actions tab - security scan runs automatically
+# Create a PR - the following runs automatically:
+# 1. Security Scan → validates code security
+# 2. Build → builds and pushes images to GHCR (tagged as pr-{number})
+#           Optionally pushes to ECR if configured
+# 3. Deploy to Staging → tests deployment in kind cluster
+# All checks must pass before PR can be merged
 ```
 
-**Test Build Workflow (Works Immediately):**
+**On Main Branch (Automatic Production Deployment):**
 ```bash
-# Make a change to a service
-echo "// Test" >> services/auth-service/src/server.js
-git add services/auth-service/src/server.js
-git commit -m "Test CI/CD build"
-git push origin main
-# Check Actions tab:
-# 1. Security scan runs first
-# 2. If security scan passes → Build workflow runs automatically
-# 3. Build workflow builds and pushes images to GHCR
-# If security scan fails → Build is skipped (prevents pushing vulnerable images, fail-fast principle)
+# Merge PR to main - the following runs automatically:
+# 1. Security Scan → validates code security
+# 2. Build → builds and pushes images to GHCR + ECR (tagged as latest)
+# 3. Deploy to Staging → final validation in kind cluster
+# 4. Deploy to Production → automatic deployment to EKS (if staging succeeds)
 ```
 
-**Test Deployment (Free, No AWS Required):**
+**Manual Production Deployment:**
 ```bash
-# After build completes, deploy-test workflow runs automatically
-# Or trigger manually from Actions tab → "Test Deployment (kind)" → Run workflow
-# This creates a temporary Kubernetes cluster, deploys your services, and tests them
-# All for FREE - no AWS costs!
-```
-
-**Production Deployment (Optional, Manual Only):**
-```bash
-# deploy.yml is available for production EKS deployment but does NOT run automatically
-# To use: Actions tab → "Deploy to EKS (Production - Manual Only)" → Run workflow
+# For other environments or manual triggers:
+# Actions tab → "Deploy to Production (EKS)" → Run workflow
+# Select environment: prod, staging, or dev
 # Requires: AWS infrastructure (EKS cluster) to be provisioned first
-# Note: This is for demonstration purposes only - deploy-test.yml is the primary CI/CD deployment
 ```
 
 **View Your Images:**
