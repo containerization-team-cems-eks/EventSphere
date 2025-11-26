@@ -83,7 +83,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure AWS credentials (for ECR)
-        if: github.event_name != 'pull_request' && secrets.AWS_ROLE_ARN != ''
+        if: github.event_name != 'pull_request'
         continue-on-error: true
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -91,7 +91,7 @@ jobs:
           aws-region: us-east-1
 
       - name: Get AWS Account ID (for ECR)
-        if: github.event_name != 'pull_request' && secrets.AWS_ROLE_ARN != ''
+        if: github.event_name != 'pull_request'
         continue-on-error: true
         id: get-account-id
         run: |
@@ -101,7 +101,7 @@ jobs:
           echo "AWS Account ID: $ACCOUNT_ID"
 
       - name: Log in to Amazon ECR
-        if: github.event_name != 'pull_request' && secrets.AWS_ROLE_ARN != '' && steps.get-account-id.outputs.account_id != ''
+        if: github.event_name != 'pull_request' && steps.get-account-id.outputs.account_id != ''
         continue-on-error: true
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
