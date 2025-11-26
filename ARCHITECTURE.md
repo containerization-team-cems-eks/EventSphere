@@ -226,23 +226,44 @@ All services have HPA configured based on:
 
 ### GitHub Actions Workflows
 
-1. **Build Workflow** (`build.yml`)
-   - Builds Docker images for all services
-   - Runs Trivy security scans
-   - Pushes to Amazon ECR
-   - Creates ECR repositories if needed
+**Execution Order:** Security Scan → Build → Deploy Test
 
-2. **Deploy Workflow** (`deploy.yml`)
+1. **Security Scan Workflow** (`security-scan.yml`) - **Runs First**
+   - Runs on every push and pull request to main branch
+   - Filesystem scans with Trivy (scans source code)
+   - Kubernetes manifest and Dockerfile scans with Trivy
+   - Infrastructure scans with Checkov (CloudFormation, Terraform, Kubernetes)
+   - Fails on critical/high vulnerabilities (fail-fast principle)
+   - Uploads results to GitHub Security tab
+   - **Must pass before build workflow runs**
+
+2. **Build Workflow** (`build.yml`) - **Runs After Security Scan**
+   - Builds Docker images for all services (auth, event, booking, frontend)
+   - Runs Trivy security scans on all built images
+   - Pushes to GitHub Container Registry (GHCR) - free, no AWS required
+   - Path filtered - only runs when relevant code changes (services/, frontend/, workflow files)
+   - Runs automatically after security scan passes
+
+3. **Test Deployment Workflow** (`deploy-test.yml`) - **Primary CI/CD Deployment**
+   - Automatically runs after successful builds
+   - Uses kind (Kubernetes in Docker) to create temporary cluster
+   - Pulls images from GHCR and loads into kind cluster
+   - Processes Kubernetes templates
+   - Deploys all services to kind cluster
+   - Validates deployments and runs health checks
+   - Automatically tears down cluster after testing
+   - **Cost: $0** - No AWS required
+
+4. **Production Deploy Workflow** (`deploy.yml` - Manual Only)
+   - Manual trigger only (not in automatic pipeline)
+   - For production EKS deployment demonstration
+   - Processes Kubernetes templates with AWS-specific variables
+   - Supports both GHCR and ECR image registries
    - Deploys to EKS cluster
-   - Updates image tags
-   - Applies Kubernetes manifests
-   - Waits for deployments
+   - Updates image tags and applies manifests
+   - Waits for deployments to be ready
    - Automatic rollback on failure
-
-3. **Security Scan Workflow** (`security-scan.yml`)
-   - Filesystem scans with Trivy
-   - Kubernetes manifest scans
-   - Infrastructure scans with Checkov
+   - **Requires AWS infrastructure** (EKS cluster)
 
 ## Data Flow
 
