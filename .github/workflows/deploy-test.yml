@@ -257,6 +257,20 @@ jobs:
           find k8s/generated -name "*.yaml" -type f -exec sed -i 's/namespace: prod/namespace: dev/g' {} \;
           find k8s/generated -name "*.yaml" -type f -exec sed -i 's/namespace: staging/namespace: dev/g' {} \;
 
+      - name: Verify frontend deployment has NET_BIND_SERVICE capability
+        run: |
+          echo "Checking frontend deployment for NET_BIND_SERVICE capability..."
+          if grep -q "NET_BIND_SERVICE" k8s/generated/base/frontend-deployment.yaml; then
+            echo "✅ NET_BIND_SERVICE capability found in frontend deployment"
+            echo "Frontend deployment securityContext:"
+            grep -A 10 "securityContext:" k8s/generated/base/frontend-deployment.yaml | head -15
+          else
+            echo "❌ NET_BIND_SERVICE capability NOT found in frontend deployment!"
+            echo "Full securityContext section:"
+            grep -A 10 "securityContext:" k8s/generated/base/frontend-deployment.yaml || echo "No securityContext found"
+            exit 1
+          fi
+
       - name: Apply ConfigMaps
         run: |
           kubectl apply -f k8s/generated/base/configmaps.yaml -n dev || true
@@ -280,6 +294,17 @@ jobs:
                 echo "Deployment $deployment not ready within timeout"
                 kubectl describe deployment "$deployment" -n dev
                 kubectl logs -n dev -l app="$deployment" --tail=50
+                
+                # For frontend, also check pod security context
+                if [ "$deployment" == "frontend" ]; then
+                  echo ""
+                  echo "=== Frontend Pod Security Context ==="
+                  kubectl get pods -n dev -l app=frontend -o yaml | grep -A 20 "securityContext:" || true
+                  echo ""
+                  echo "=== Frontend Pod Capabilities ==="
+                  kubectl get pods -n dev -l app=frontend -o yaml | grep -A 10 "capabilities:" || true
+                fi
+                
                 exit 1
               }
               echo "$deployment is ready"
