@@ -213,9 +213,9 @@ jobs:
           echo "All image signatures verified successfully"
 
       - name: Install Kyverno CLI
-        uses: kyverno/kyverno-action@v1
+        uses: kyverno/action-install-cli@v0.2.0
         with:
-          kyverno-version: 'latest'
+          release: 'latest'
 
       - name: Validate Kubernetes manifests with Kyverno
         run: |
