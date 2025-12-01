@@ -24,19 +24,15 @@ spec:
         - StatefulSet
         - DaemonSet
     validate:
-      message: "Containers must run as non-root user"
+      message: "Containers must run as non-root user (pod-level or container-level securityContext)"
       anyPattern:
-      # Pattern for Deployment/StatefulSet/DaemonSet (has template)
-      # Accepts runAsNonRoot at pod level OR container level
+      # Pattern for Deployment/StatefulSet/DaemonSet with pod-level runAsNonRoot
       - spec:
           template:
             spec:
               securityContext:
                 runAsNonRoot: true
-              containers:
-              - name: "*"
-                securityContext:
-                  runAsNonRoot: "?true"
+      # Pattern for Deployment/StatefulSet/DaemonSet with container-level runAsNonRoot
       - spec:
           template:
             spec:
@@ -44,15 +40,11 @@ spec:
               - name: "*"
                 securityContext:
                   runAsNonRoot: true
-      # Pattern for Pod (no template)
-      # Accepts runAsNonRoot at pod level OR container level
+      # Pattern for Pod with pod-level runAsNonRoot
       - spec:
           securityContext:
             runAsNonRoot: true
-          containers:
-          - name: "*"
-            securityContext:
-              runAsNonRoot: "?true"
+      # Pattern for Pod with container-level runAsNonRoot
       - spec:
           containers:
           - name: "*"
