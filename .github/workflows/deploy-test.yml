@@ -257,15 +257,13 @@ jobs:
           find k8s/generated -name "*.yaml" -type f -exec sed -i 's/namespace: prod/namespace: dev/g' {} \;
           find k8s/generated -name "*.yaml" -type f -exec sed -i 's/namespace: staging/namespace: dev/g' {} \;
 
+      - name: Install Kyverno CLI
+        uses: kyverno/kyverno-action@v1
+        with:
+          kyverno-version: 'latest'
+
       - name: Validate Kubernetes manifests with Kyverno
         run: |
-          echo "Installing Kyverno CLI..."
-          curl -LO "https://github.com/kyverno/kyverno/releases/latest/download/kyverno-cli-linux-amd64.tar.gz"
-          tar -xzf kyverno-cli-linux-amd64.tar.gz
-          chmod +x kyverno
-          sudo mv kyverno /usr/local/bin/
-          kyverno version
-          
           echo "Validating Kubernetes manifests with Kyverno policies..."
           
           # Validate all generated manifests against policies
