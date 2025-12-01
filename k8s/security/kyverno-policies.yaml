@@ -25,8 +25,19 @@ spec:
         - DaemonSet
     validate:
       message: "Containers must run as non-root user"
-      pattern:
-        spec:
+      anyPattern:
+      # Pattern for Deployment/StatefulSet/DaemonSet (has template)
+      - spec:
+          template:
+            spec:
+              securityContext:
+                runAsNonRoot: true
+              containers:
+              - name: "*"
+                securityContext:
+                  runAsNonRoot: true
+      # Pattern for Pod (no template)
+      - spec:
           securityContext:
             runAsNonRoot: true
           containers:
@@ -60,8 +71,17 @@ spec:
         - prod
     validate:
       message: "Consider using read-only root filesystem for enhanced security"
-      pattern:
-        spec:
+      anyPattern:
+      # Pattern for Deployment/StatefulSet/DaemonSet (has template)
+      - spec:
+          template:
+            spec:
+              containers:
+              - name: "*"
+                securityContext:
+                  readOnlyRootFilesystem: "?true"
+      # Pattern for Pod (no template)
+      - spec:
           containers:
           - name: "*"
             securityContext:
@@ -91,8 +111,22 @@ spec:
         - DaemonSet
     validate:
       message: "All containers must have resource requests and limits"
-      pattern:
-        spec:
+      anyPattern:
+      # Pattern for Deployment/StatefulSet/DaemonSet (has template)
+      - spec:
+          template:
+            spec:
+              containers:
+              - name: "*"
+                resources:
+                  requests:
+                    memory: "?*"
+                    cpu: "?*"
+                  limits:
+                    memory: "?*"
+                    cpu: "?*"
+      # Pattern for Pod (no template)
+      - spec:
           containers:
           - name: "*"
             resources:
@@ -127,8 +161,17 @@ spec:
         - DaemonSet
     validate:
       message: "Privilege escalation must be disabled"
-      pattern:
-        spec:
+      anyPattern:
+      # Pattern for Deployment/StatefulSet/DaemonSet (has template)
+      - spec:
+          template:
+            spec:
+              containers:
+              - name: "*"
+                securityContext:
+                  allowPrivilegeEscalation: false
+      # Pattern for Pod (no template)
+      - spec:
           containers:
           - name: "*"
             securityContext:
@@ -158,12 +201,22 @@ spec:
         - DaemonSet
     validate:
       message: "Containers should drop all capabilities (exceptions allowed with justification)"
-      pattern:
-        spec:
+      anyPattern:
+      # Pattern for Deployment/StatefulSet/DaemonSet (has template)
+      - spec:
+          template:
+            spec:
+              containers:
+              - name: "*"
+                securityContext:
+                  capabilities:
+                    drop:
+                    - ALL
+      # Pattern for Pod (no template)
+      - spec:
           containers:
           - name: "*"
             securityContext:
               capabilities:
                 drop:
                 - ALL
-
