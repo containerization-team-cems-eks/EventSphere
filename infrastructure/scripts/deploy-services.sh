@@ -57,6 +57,10 @@ while [[ $# -gt 0 ]]; do
             SKIP_INGRESS=true
             shift
             ;;
+        --skip-monitoring)
+            SKIP_MONITORING=true
+            shift
+            ;;
         --use-external-secrets)
             USE_EXTERNAL_SECRETS=true
             shift
@@ -82,6 +86,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --skip-mongodb           Skip MongoDB deployment"
             echo "  --skip-services          Skip microservices deployment"
             echo "  --skip-ingress           Skip ingress deployment"
+            echo "  --skip-monitoring        Skip observability stack deployment"
             echo "  --use-external-secrets   Use External Secrets Operator"
             echo "  --mongodb-password PASS  Custom MongoDB password"
             echo "  --jwt-secret SECRET      Custom JWT secret"
@@ -727,6 +732,96 @@ else
 fi
 
 # ==============================================================================
+# Step 6: Deploy Observability Stack (Prometheus, Grafana, Fluent Bit)
+# ==============================================================================
+SKIP_MONITORING="${SKIP_MONITORING:-false}"
+
+if [ "$SKIP_MONITORING" != "true" ]; then
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BLUE}Step 6: Deploy Observability Stack${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    
+    if [ "$DRY_RUN" != "true" ]; then
+        # Create CloudWatch Log Group
+        echo -e "${BLUE}📝 Creating CloudWatch Log Group...${NC}"
+        LOG_GROUP="/aws/eks/${CLUSTER_NAME}/application"
+        MSYS_NO_PATHCONV=1 aws logs create-log-group --log-group-name "$LOG_GROUP" --region "$AWS_REGION" 2>/dev/null || echo "Log group exists"
+        MSYS_NO_PATHCONV=1 aws logs put-retention-policy --log-group-name "$LOG_GROUP" --retention-in-days 30 --region "$AWS_REGION" 2>/dev/null || true
+        echo -e "${GREEN}✅ CloudWatch Log Group ready${NC}"
+        echo ""
+        
+        # Deploy Fluent Bit
+        echo -e "${BLUE}📋 Deploying Fluent Bit for log collection...${NC}"
+        kubectl apply -f "$PROJECT_ROOT/monitoring/cloudwatch/fluent-bit-config.yaml"
+        echo -e "${GREEN}✅ Fluent Bit deployed${NC}"
+        echo ""
+        
+        # Add Helm repo for Prometheus
+        echo -e "${BLUE}📦 Setting up Prometheus Helm repo...${NC}"
+        helm repo add prometheus-community https://prometheus-community.github.io/helm-charts 2>/dev/null || true
+        helm repo update >/dev/null 2>&1
+        echo -e "${GREEN}✅ Helm repo ready${NC}"
+        echo ""
+        
+        # Create monitoring namespace
+        kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null
+        
+        # Deploy Prometheus + Grafana
+        echo -e "${BLUE}📊 Deploying Prometheus and Grafana (this takes 2-3 minutes)...${NC}"
+        helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
+            --namespace monitoring \
+            --values "$PROJECT_ROOT/monitoring/prometheus/values.yaml" \
+            --wait \
+            --timeout 5m 2>&1 | grep -v "^W" || true
+        echo -e "${GREEN}✅ Prometheus and Grafana deployed${NC}"
+        echo ""
+        
+        # Deploy alert rules
+        echo -e "${BLUE}🚨 Deploying alert rules...${NC}"
+        kubectl apply -f "$PROJECT_ROOT/monitoring/prometheus/alertrules.yaml"
+        echo -e "${GREEN}✅ Alert rules deployed${NC}"
+        echo ""
+        
+        # Deploy monitoring ingress if template was processed
+        if [ -f "$PROJECT_ROOT/monitoring/generated/ingress.yaml" ]; then
+            echo -e "${BLUE}🌐 Deploying Grafana ingress...${NC}"
+            kubectl apply -f "$PROJECT_ROOT/monitoring/generated/ingress.yaml"
+            echo -e "${GREEN}✅ Grafana ingress deployed${NC}"
+            echo ""
+        fi
+        
+        # Deploy Prometheus ingress if template was processed
+        if [ -f "$PROJECT_ROOT/monitoring/generated/prometheus-ingress.yaml" ]; then
+            echo -e "${BLUE}🌐 Deploying Prometheus ingress...${NC}"
+            kubectl apply -f "$PROJECT_ROOT/monitoring/generated/prometheus-ingress.yaml"
+            echo -e "${GREEN}✅ Prometheus ingress deployed${NC}"
+            echo ""
+        fi
+        
+        # Create Grafana dashboard ConfigMap
+        kubectl create configmap eventsphere-grafana-dashboard \
+            --from-file=eventsphere.json="$PROJECT_ROOT/monitoring/grafana/dashboards/eventsphere-dashboard.json" \
+            --namespace monitoring \
+            --dry-run=client -o yaml | kubectl apply -f -
+        kubectl label configmap eventsphere-grafana-dashboard grafana_dashboard=1 -n monitoring --overwrite 2>/dev/null || true
+        echo -e "${GREEN}✅ Grafana dashboard configured${NC}"
+        echo ""
+        
+        # Verify monitoring pods
+        echo -e "${BLUE}🔍 Verifying monitoring pods...${NC}"
+        kubectl get pods -n monitoring --no-headers 2>/dev/null | head -5
+        kubectl get pods -n amazon-cloudwatch --no-headers 2>/dev/null | head -3
+        echo ""
+    else
+        echo -e "${YELLOW}[DRY RUN] Would deploy: Fluent Bit, Prometheus, Grafana, Alert Rules${NC}"
+    fi
+else
+    echo -e "${YELLOW}⏭️  Skipping monitoring deployment (use --skip-monitoring=false to enable)${NC}"
+    echo ""
+fi
+
+# ==============================================================================
 # Summary
 # ==============================================================================
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -739,16 +834,39 @@ echo "Summary:"
 [ "$SKIP_MONGODB" != "true" ] && echo "  ✅ MongoDB deployed"
 [ "$SKIP_SERVICES" != "true" ] && echo "  ✅ Microservices deployed"
 [ "$SKIP_INGRESS" != "true" ] && echo "  ✅ Ingress deployed"
+[ "$SKIP_MONITORING" != "true" ] && echo "  ✅ Observability stack deployed (Prometheus, Grafana, Fluent Bit)"
 echo ""
-echo "Next steps:"
-if [ "$SKIP_INGRESS" == "true" ]; then
-    echo "  1. Configure Ingress: kubectl apply -f k8s/generated/ingress/"
-    echo "  2. Deploy monitoring: kubectl apply -f monitoring/cloudwatch/generated/"
-    echo "  3. Verify services: kubectl get all -n prod"
-else
-    echo "  1. Deploy monitoring: kubectl apply -f monitoring/cloudwatch/generated/"
-    echo "  2. Verify services: kubectl get all -n prod"
-    echo "  3. Check ingress status: kubectl get ingress eventsphere-ingress -n prod"
+echo "Access URLs:"
+echo ""
+echo "  📊 Grafana (Monitoring Dashboard):"
+echo "     Local:  kubectl port-forward -n monitoring svc/prometheus-grafana 3000:80"
+echo "             http://localhost:3000"
+if [ -f "$PROJECT_ROOT/monitoring/generated/ingress.yaml" ]; then
+    echo "     Public: https://monitoring.enpm818rgroup7.work.gd (requires DNS setup)"
 fi
+echo ""
+echo "     ┌────────────────────────────────┐"
+echo "     │  Username: admin               │"
+echo "     │  Password: EventSphere2024     │"
+echo "     └────────────────────────────────┘"
+echo ""
+echo "  📈 Prometheus (Metrics & Queries):"
+echo "     Local:  kubectl port-forward -n monitoring svc/prometheus-kube-prometheus-prometheus 9090:9090"
+echo "             http://localhost:9090"
+if [ -f "$PROJECT_ROOT/monitoring/generated/prometheus-ingress.yaml" ]; then
+    echo "     Public: https://prometheus.enpm818rgroup7.work.gd (requires DNS setup)"
+fi
+echo ""
+echo "     ┌────────────────────────────────┐"
+echo "     │  Authentication: None          │"
+echo "     │  (Public access - no password) │"
+echo "     └────────────────────────────────┘"
+echo ""
+echo "  ☁️  CloudWatch Logs: /aws/eks/$CLUSTER_NAME/application"
+echo ""
+echo "Verify deployment:"
+echo "  kubectl get all -n prod"
+echo "  kubectl get pods -n monitoring"
+echo "  kubectl get ingress -A"
 echo ""
 
