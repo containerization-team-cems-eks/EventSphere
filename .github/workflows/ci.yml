@@ -123,6 +123,22 @@ jobs:
           kube-score score k8s/generated/base/ || echo "Kube-score found issues (non-blocking)"
         continue-on-error: true
 
+      - name: Install conftest
+        run: |
+          curl -L https://github.com/open-policy-agent/conftest/releases/latest/download/conftest_Linux_x86_64.tar.gz | tar -xz
+          sudo mv conftest /usr/local/bin/
+          conftest --version
+
+      - name: Validate Kubernetes manifests with OPA (conftest)
+        run: |
+          if [ -d "k8s/generated/base" ]; then
+            echo "Running conftest on k8s/generated/base..."
+            conftest test --policy policy/ k8s/generated/base/ || echo "conftest found issues (non-blocking for now)"
+          else
+            echo "k8s/generated/base not found, skipping conftest"
+          fi
+        continue-on-error: true
+
   docker-build-scan:
     name: Docker Build & Security Scan
     runs-on: ubuntu-latest
