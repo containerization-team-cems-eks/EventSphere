@@ -129,8 +129,9 @@ jobs:
       - name: Score Kubernetes manifests
         run: |
           echo "Scoring Kubernetes manifests in k8s/generated/base/"
-          kube-score score k8s/generated/base/ || echo "Kube-score found issues (non-blocking)"
+          kube-score score k8s/generated/base/*.yaml || echo "Kube-score found issues (non-blocking)"
         continue-on-error: true
+
 
   docker-build-scan:
     name: Docker Build & Security Scan
@@ -269,4 +270,4 @@ jobs:
           echo "Policies  : $POLICY_FILE"
           echo "Resources : $MANIFEST_ROOT"
 
-          kyverno apply "$POLICY_FILE" --resource "$MANIFEST_ROOT"
+          kyverno apply "$POLICY_FILE" --resource "$MANIFEST_ROOT" --output table
