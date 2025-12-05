@@ -235,7 +235,7 @@ jobs:
       - name: Install Kyverno CLI
         uses: kyverno/action-install-cli@v0.2.0
         with:
-          release: 'v1.12.0'
+          release: 'v1.12.0' # or whatever you prefer
 
       - name: Show Kyverno version
         run: kyverno version
@@ -243,7 +243,7 @@ jobs:
       - name: Validate manifests against Kyverno policies
         run: |
           POLICY_FILE="k8s/security/kyverno-policies.yaml"
-          MANIFEST_ROOT="k8s"
+          MANIFEST_ROOT="k8s/generated/base"
 
           if [ ! -f "$POLICY_FILE" ]; then
             echo "Policy file '$POLICY_FILE' not found, skipping Kyverno validation."
@@ -251,7 +251,7 @@ jobs:
           fi
 
           if [ ! -d "$MANIFEST_ROOT" ]; then
-            echo "Manifest root '$MANIFEST_ROOT' not found, skipping Kyverno validation."
+            echo "Manifest root '$MANIFEST_ROOT' not found (is k8s/generated/base committed or generated in CI?)"
             exit 0
           fi
 
@@ -259,5 +259,8 @@ jobs:
           echo "Policies  : $POLICY_FILE"
           echo "Resources : $MANIFEST_ROOT"
 
-          # This will fail the job if any Enforce policies are violated.
-          kyverno apply "$POLICY_FILE" -r "$MANIFEST_ROOT"
+          find "$MANIFEST_ROOT" -type f \( -name '*.yaml' -o -name '*.yml' \)
+
+          kyverno apply "$POLICY_FILE" --resource "$MANIFEST_ROOT"
+
+
