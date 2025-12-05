@@ -101,8 +101,9 @@ jobs:
       
       - name: Generate Kubernetes manifests
         run: |
-          export AWS_ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
-          export ECR_REGISTRY="${{ secrets.ECR_REGISTRY }}"
+          AWS_REGION:   ${{ secrets.AWS_REGION }}
+          CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
+          ECR_REGISTRY: ${{ secrets.ECR_REPOSITORY }}
           chmod +x infrastructure/scripts/process-templates.sh
           infrastructure/scripts/process-templates.sh
 
@@ -233,8 +234,9 @@ jobs:
 
       - name: Generate Kubernetes manifests
         run: |
-          export AWS_ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
-          export ECR_REGISTRY="${{ secrets.ECR_REGISTRY }}"
+          AWS_REGION:   ${{ secrets.AWS_REGION }}
+          CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
+          ECR_REGISTRY: ${{ secrets.ECR_REPOSITORY }}
           chmod +x infrastructure/scripts/process-templates.sh
           infrastructure/scripts/process-templates.sh
 
