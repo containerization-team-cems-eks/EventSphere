@@ -165,11 +165,52 @@ jobs:
         with:
           version: 'latest'
 
+      - name: Check if cluster exists
+        id: check-cluster
+        run: |
+          CLUSTER_NAME="${{ secrets.EKS_CLUSTER_NAME }}"
+          AWS_REGION="${{ secrets.AWS_REGION }}"
+          
+          if [ -z "$CLUSTER_NAME" ]; then
+            echo "⚠️  EKS_CLUSTER_NAME secret is not set, skipping deployment"
+            echo "exists=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "🔍 Checking if cluster '$CLUSTER_NAME' exists..."
+          
+          # Check if cluster exists
+          if aws eks describe-cluster --name "$CLUSTER_NAME" --region "$AWS_REGION" &> /dev/null; then
+            # Get cluster status
+            CLUSTER_STATUS=$(aws eks describe-cluster --name "$CLUSTER_NAME" --region "$AWS_REGION" --query 'cluster.status' --output text)
+            
+            if [ "$CLUSTER_STATUS" == "ACTIVE" ]; then
+              echo "✅ Cluster '$CLUSTER_NAME' exists and is ACTIVE"
+              echo "exists=true" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️  Cluster '$CLUSTER_NAME' exists but is not ACTIVE (status: $CLUSTER_STATUS), skipping deployment"
+              echo "exists=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "⚠️  Cluster '$CLUSTER_NAME' does not exist in region '$AWS_REGION', skipping deployment"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Configure kubeconfig
+        if: steps.check-cluster.outputs.exists == 'true'
         run: |
           aws eks update-kubeconfig --name ${{ secrets.EKS_CLUSTER_NAME }} --region ${{ secrets.AWS_REGION }}
+          
+          # Verify kubeconfig is working
+          if ! kubectl cluster-info &> /dev/null; then
+            echo "❌ Error: Failed to configure kubeconfig or cluster is not accessible"
+            exit 1
+          fi
+          
+          echo "✅ Successfully configured kubeconfig"
 
       - name: Get AWS Account ID
+        if: steps.check-cluster.outputs.exists == 'true'
         id: get-account-id
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -179,12 +220,14 @@ jobs:
           echo "ECR Registry: ${ECR_REGISTRY}"
 
       - name: Set image tag
+        if: steps.check-cluster.outputs.exists == 'true'
         id: set-tag
         run: |
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
           echo "tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
 
       - name: Set namespace
+        if: steps.check-cluster.outputs.exists == 'true'
         id: set-namespace
         run: |
           ENV="${{ needs.determine-environment.outputs.environment }}"
@@ -195,11 +238,13 @@ jobs:
           fi
 
       - name: Create namespace
+        if: steps.check-cluster.outputs.exists == 'true'
         run: |
           NAMESPACE="${{ steps.set-namespace.outputs.namespace }}"
           kubectl create namespace ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Deploy auth-service with Helm
+        if: steps.check-cluster.outputs.exists == 'true'
         run: |
           NAMESPACE="${{ steps.set-namespace.outputs.namespace }}"
           IMAGE_TAG="${{ steps.set-tag.outputs.tag }}"
@@ -216,6 +261,7 @@ jobs:
             --wait --timeout=5m
 
       - name: Deploy event-service with Helm
+        if: steps.check-cluster.outputs.exists == 'true'
         run: |
           NAMESPACE="${{ steps.set-namespace.outputs.namespace }}"
           IMAGE_TAG="${{ steps.set-tag.outputs.tag }}"
@@ -232,6 +278,7 @@ jobs:
             --wait --timeout=5m
 
       - name: Deploy booking-service with Helm
+        if: steps.check-cluster.outputs.exists == 'true'
         run: |
           NAMESPACE="${{ steps.set-namespace.outputs.namespace }}"
           IMAGE_TAG="${{ steps.set-tag.outputs.tag }}"
@@ -248,6 +295,7 @@ jobs:
             --wait --timeout=5m
 
       - name: Deploy frontend with Helm
+        if: steps.check-cluster.outputs.exists == 'true'
         run: |
           NAMESPACE="${{ steps.set-namespace.outputs.namespace }}"
           IMAGE_TAG="${{ steps.set-tag.outputs.tag }}"
@@ -264,6 +312,7 @@ jobs:
             --wait --timeout=5m
 
       - name: Verify rollout status
+        if: steps.check-cluster.outputs.exists == 'true'
         run: |
           NAMESPACE="${{ steps.set-namespace.outputs.namespace }}"
           echo "Verifying rollout status for all deployments..."
@@ -273,6 +322,7 @@ jobs:
           kubectl rollout status deployment/frontend -n ${NAMESPACE} --timeout=2m
 
       - name: Verify Helm releases
+        if: steps.check-cluster.outputs.exists == 'true'
         run: |
           NAMESPACE="${{ steps.set-namespace.outputs.namespace }}"
           echo "Checking Helm releases in namespace: ${NAMESPACE}"
@@ -288,6 +338,7 @@ jobs:
           kubectl wait --for=condition=available deployment/frontend -n ${NAMESPACE} --timeout=2m || true
 
       - name: Get ingress URL
+        if: steps.check-cluster.outputs.exists == 'true'
         id: get-ingress-url
         run: |
           NAMESPACE="${{ steps.set-namespace.outputs.namespace }}"
@@ -321,11 +372,52 @@ jobs:
         with:
           version: 'latest'
 
+      - name: Check if cluster exists
+        id: check-cluster
+        run: |
+          CLUSTER_NAME="${{ secrets.EKS_CLUSTER_NAME }}"
+          AWS_REGION="${{ secrets.AWS_REGION }}"
+          
+          if [ -z "$CLUSTER_NAME" ]; then
+            echo "⚠️  EKS_CLUSTER_NAME secret is not set, skipping smoke tests"
+            echo "exists=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "🔍 Checking if cluster '$CLUSTER_NAME' exists..."
+          
+          # Check if cluster exists
+          if aws eks describe-cluster --name "$CLUSTER_NAME" --region "$AWS_REGION" &> /dev/null; then
+            # Get cluster status
+            CLUSTER_STATUS=$(aws eks describe-cluster --name "$CLUSTER_NAME" --region "$AWS_REGION" --query 'cluster.status' --output text)
+            
+            if [ "$CLUSTER_STATUS" == "ACTIVE" ]; then
+              echo "✅ Cluster '$CLUSTER_NAME' exists and is ACTIVE"
+              echo "exists=true" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️  Cluster '$CLUSTER_NAME' exists but is not ACTIVE (status: $CLUSTER_STATUS), skipping smoke tests"
+              echo "exists=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "⚠️  Cluster '$CLUSTER_NAME' does not exist in region '$AWS_REGION', skipping smoke tests"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Configure kubeconfig
+        if: steps.check-cluster.outputs.exists == 'true'
         run: |
           aws eks update-kubeconfig --name ${{ secrets.EKS_CLUSTER_NAME }} --region ${{ secrets.AWS_REGION }}
+          
+          # Verify kubeconfig is working
+          if ! kubectl cluster-info &> /dev/null; then
+            echo "❌ Error: Failed to configure kubeconfig or cluster is not accessible"
+            exit 1
+          fi
+          
+          echo "✅ Successfully configured kubeconfig"
 
       - name: Set namespace
+        if: steps.check-cluster.outputs.exists == 'true'
         id: set-namespace
         run: |
           ENV="${{ needs.determine-environment.outputs.environment }}"
@@ -336,6 +428,7 @@ jobs:
           fi
 
       - name: Get service endpoints
+        if: steps.check-cluster.outputs.exists == 'true'
         id: get-endpoints
         run: |
           NAMESPACE="${{ steps.set-namespace.outputs.namespace }}"
@@ -350,6 +443,7 @@ jobs:
           echo "frontend-url=${FRONTEND_URL}" >> $GITHUB_OUTPUT
 
       - name: Health check - auth-service
+        if: steps.check-cluster.outputs.exists == 'true'
         run: |
           NAMESPACE="${{ steps.set-namespace.outputs.namespace }}"
           echo "Checking auth-service health endpoint..."
@@ -363,6 +457,7 @@ jobs:
           kill $PF_PID || true
 
       - name: Health check - event-service
+        if: steps.check-cluster.outputs.exists == 'true'
         run: |
           NAMESPACE="${{ steps.set-namespace.outputs.namespace }}"
           echo "Checking event-service health endpoint..."
@@ -376,6 +471,7 @@ jobs:
           kill $PF_PID || true
 
       - name: Health check - booking-service
+        if: steps.check-cluster.outputs.exists == 'true'
         run: |
           NAMESPACE="${{ steps.set-namespace.outputs.namespace }}"
           echo "Checking booking-service health endpoint..."
@@ -389,6 +485,7 @@ jobs:
           kill $PF_PID || true
 
       - name: Verify all pods are healthy
+        if: steps.check-cluster.outputs.exists == 'true'
         run: |
           NAMESPACE="${{ steps.set-namespace.outputs.namespace }}"
           echo "Final pod status check:"
