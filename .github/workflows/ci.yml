@@ -123,24 +123,6 @@ jobs:
           kube-score score k8s/generated/base/ || echo "Kube-score found issues (non-blocking)"
         continue-on-error: true
 
-      - name: Install conftest
-        run: |
-          CONFTEST_VERSION="v0.56.0"
-          curl -L "https://github.com/open-policy-agent/conftest/releases/download/${CONFTEST_VERSION}/conftest_Linux_x86_64.tar.gz" -o conftest.tar.gz
-          tar -xzf conftest.tar.gz
-          sudo mv conftest /usr/local/bin/
-          conftest --version
-
-      - name: Validate Kubernetes manifests with OPA (conftest)
-        run: |
-          if [ -d "k8s/generated/base" ]; then
-            echo "Running conftest on k8s/generated/base..."
-            conftest test k8s/generated/base/ || echo "conftest found issues (non-blocking for now)"
-          else
-            echo "k8s/generated/base not found, skipping conftest"
-          fi
-        continue-on-error: true
-
   docker-build-scan:
     name: Docker Build & Security Scan
     runs-on: ubuntu-latest
@@ -232,3 +214,35 @@ jobs:
             echo "No Helm charts directory found, skipping validation"
           fi
         continue-on-error: true
+
+  gatekeeper-policy-check:
+    name: Gatekeeper Policy Check (Conftest)
+    runs-on: ubuntu-latest
+    needs: [k8s-validation]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Conftest
+        uses: princespaghetti/setup-conftest@v1
+        with:
+          version: latest
+
+      - name: Install Gatekeeper Conftest plugin
+        run: |
+          conftest plugin install \
+            https://github.com/clover/gatekeeper-conftest/releases/download/v0.1.1/gatekeeper-conftest_0.1.1_linux_amd64.tar.gz
+
+      - name: Run Gatekeeper policy checks
+        run: |
+          MANIFEST_DIR="k8s/generated/base"
+          POLICY_DIR="policy"
+
+          echo "--- Manifests found:"
+          find "$MANIFEST_DIR" -type f
+
+          for file in $(find "$MANIFEST_DIR" -type f -name "*.yaml" -o -name "*.yml"); do
+            echo "Checking: $file"
+            conftest gatekeeper "$file" -- --policy "$POLICY_DIR"
+          done
