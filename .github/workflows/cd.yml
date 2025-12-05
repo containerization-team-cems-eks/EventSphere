@@ -172,12 +172,12 @@ jobs:
           AWS_REGION="${{ secrets.AWS_REGION }}"
           
           if [ -z "$CLUSTER_NAME" ]; then
-            echo "⚠️  EKS_CLUSTER_NAME secret is not set, skipping deployment"
+            echo "EKS_CLUSTER_NAME secret is not set, skipping deployment"
             echo "exists=false" >> $GITHUB_OUTPUT
             exit 0
           fi
           
-          echo "🔍 Checking if cluster '$CLUSTER_NAME' exists..."
+          echo "Checking if cluster '$CLUSTER_NAME' exists..."
           
           # Check if cluster exists
           if aws eks describe-cluster --name "$CLUSTER_NAME" --region "$AWS_REGION" &> /dev/null; then
@@ -185,14 +185,14 @@ jobs:
             CLUSTER_STATUS=$(aws eks describe-cluster --name "$CLUSTER_NAME" --region "$AWS_REGION" --query 'cluster.status' --output text)
             
             if [ "$CLUSTER_STATUS" == "ACTIVE" ]; then
-              echo "✅ Cluster '$CLUSTER_NAME' exists and is ACTIVE"
+              echo "Cluster '$CLUSTER_NAME' exists and is ACTIVE"
               echo "exists=true" >> $GITHUB_OUTPUT
             else
-              echo "⚠️  Cluster '$CLUSTER_NAME' exists but is not ACTIVE (status: $CLUSTER_STATUS), skipping deployment"
+              echo "Cluster '$CLUSTER_NAME' exists but is not ACTIVE (status: $CLUSTER_STATUS), skipping deployment"
               echo "exists=false" >> $GITHUB_OUTPUT
             fi
           else
-            echo "⚠️  Cluster '$CLUSTER_NAME' does not exist in region '$AWS_REGION', skipping deployment"
+            echo "Cluster '$CLUSTER_NAME' does not exist in region '$AWS_REGION', skipping deployment"
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
@@ -203,11 +203,11 @@ jobs:
           
           # Verify kubeconfig is working
           if ! kubectl cluster-info &> /dev/null; then
-            echo "❌ Error: Failed to configure kubeconfig or cluster is not accessible"
+            echo "Error: Failed to configure kubeconfig or cluster is not accessible"
             exit 1
           fi
           
-          echo "✅ Successfully configured kubeconfig"
+          echo "Successfully configured kubeconfig"
 
       - name: Get AWS Account ID
         if: steps.check-cluster.outputs.exists == 'true'
@@ -379,12 +379,12 @@ jobs:
           AWS_REGION="${{ secrets.AWS_REGION }}"
           
           if [ -z "$CLUSTER_NAME" ]; then
-            echo "⚠️  EKS_CLUSTER_NAME secret is not set, skipping smoke tests"
+            echo "EKS_CLUSTER_NAME secret is not set, skipping smoke tests"
             echo "exists=false" >> $GITHUB_OUTPUT
             exit 0
           fi
           
-          echo "🔍 Checking if cluster '$CLUSTER_NAME' exists..."
+          echo "Checking if cluster '$CLUSTER_NAME' exists..."
           
           # Check if cluster exists
           if aws eks describe-cluster --name "$CLUSTER_NAME" --region "$AWS_REGION" &> /dev/null; then
@@ -392,14 +392,14 @@ jobs:
             CLUSTER_STATUS=$(aws eks describe-cluster --name "$CLUSTER_NAME" --region "$AWS_REGION" --query 'cluster.status' --output text)
             
             if [ "$CLUSTER_STATUS" == "ACTIVE" ]; then
-              echo "✅ Cluster '$CLUSTER_NAME' exists and is ACTIVE"
+              echo "Cluster '$CLUSTER_NAME' exists and is ACTIVE"
               echo "exists=true" >> $GITHUB_OUTPUT
             else
-              echo "⚠️  Cluster '$CLUSTER_NAME' exists but is not ACTIVE (status: $CLUSTER_STATUS), skipping smoke tests"
+              echo "Cluster '$CLUSTER_NAME' exists but is not ACTIVE (status: $CLUSTER_STATUS), skipping smoke tests"
               echo "exists=false" >> $GITHUB_OUTPUT
             fi
           else
-            echo "⚠️  Cluster '$CLUSTER_NAME' does not exist in region '$AWS_REGION', skipping smoke tests"
+            echo "Cluster '$CLUSTER_NAME' does not exist in region '$AWS_REGION', skipping smoke tests"
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
@@ -410,11 +410,11 @@ jobs:
           
           # Verify kubeconfig is working
           if ! kubectl cluster-info &> /dev/null; then
-            echo "❌ Error: Failed to configure kubeconfig or cluster is not accessible"
+            echo "Error: Failed to configure kubeconfig or cluster is not accessible"
             exit 1
           fi
           
-          echo "✅ Successfully configured kubeconfig"
+          echo "Successfully configured kubeconfig"
 
       - name: Set namespace
         if: steps.check-cluster.outputs.exists == 'true'
