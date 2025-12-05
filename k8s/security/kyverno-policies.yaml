@@ -58,9 +58,9 @@ metadata:
     policies.kyverno.io/category: "Security"
     policies.kyverno.io/severity: "medium"
     policies.kyverno.io/description: >-
-      Enforces read-only root filesystem where possible (frontend).
+      Enforces read-only root filesystem for all containers.
 spec:
-  validationFailureAction: Audit
+  validationFailureAction: Enforce
   rules:
     - name: check-read-only-rootfs
       match:
@@ -83,13 +83,13 @@ spec:
                   containers:
                     - name: "*"
                       securityContext:
-                        readOnlyRootFilesystem: "?true"
+                        readOnlyRootFilesystem: true
           # Pod (no template)
           - spec:
               containers:
                 - name: "*"
                   securityContext:
-                    readOnlyRootFilesystem: "?true"
+                    readOnlyRootFilesystem: true
 
 ---
 apiVersion: kyverno.io/v1
