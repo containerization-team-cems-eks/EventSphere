@@ -257,7 +257,7 @@ jobs:
             --set image.repository=${ECR_REGISTRY}/auth-service \
             --set image.tag=${IMAGE_TAG} \
             --set namespace=${NAMESPACE} \
-            --wait --timeout=5m
+            --atomic --timeout=5m
 
       - name: Deploy event-service with Helm
         if: steps.check-cluster.outputs.exists == 'true'
@@ -274,7 +274,7 @@ jobs:
             --set image.repository=${ECR_REGISTRY}/event-service \
             --set image.tag=${IMAGE_TAG} \
             --set namespace=${NAMESPACE} \
-            --wait --timeout=5m
+            --atomic --timeout=5m
 
       - name: Deploy booking-service with Helm
         if: steps.check-cluster.outputs.exists == 'true'
@@ -291,7 +291,7 @@ jobs:
             --set image.repository=${ECR_REGISTRY}/booking-service \
             --set image.tag=${IMAGE_TAG} \
             --set namespace=${NAMESPACE} \
-            --wait --timeout=5m
+            --atomic --timeout=5m
 
       - name: Deploy frontend with Helm
         if: steps.check-cluster.outputs.exists == 'true'
@@ -308,7 +308,7 @@ jobs:
             --set image.repository=${ECR_REGISTRY}/frontend \
             --set image.tag=${IMAGE_TAG} \
             --set namespace=${NAMESPACE} \
-            --wait --timeout=5m
+            --atomic --timeout=5m
 
       - name: Verify rollout status
         if: steps.check-cluster.outputs.exists == 'true'
