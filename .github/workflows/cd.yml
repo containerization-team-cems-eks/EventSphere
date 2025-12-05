@@ -161,6 +161,11 @@ jobs:
         with:
           version: 'latest'
 
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'latest'
+
       - name: Configure kubeconfig
         run: |
           aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
@@ -190,85 +195,89 @@ jobs:
             echo "namespace=${ENV}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Update image references in deployments
+      - name: Create namespace
+        run: |
+          NAMESPACE="${{ steps.set-namespace.outputs.namespace }}"
+          kubectl create namespace ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy auth-service with Helm
         run: |
           NAMESPACE="${{ steps.set-namespace.outputs.namespace }}"
           IMAGE_TAG="${{ steps.set-tag.outputs.tag }}"
           ECR_REGISTRY="${{ steps.get-account-id.outputs.ecr-registry }}"
           
-          echo "Updating image references in namespace: ${NAMESPACE}"
-          echo "Image tag: ${IMAGE_TAG}"
-          echo "ECR Registry: ${ECR_REGISTRY}"
+          echo "Deploying auth-service to namespace: ${NAMESPACE}"
+          echo "Image: ${ECR_REGISTRY}/auth-service:${IMAGE_TAG}"
           
-          kubectl create namespace ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
-          
-          if kubectl get deployment auth-service -n ${NAMESPACE} &>/dev/null; then
-            kubectl set image deployment/auth-service \
-              auth-service=${ECR_REGISTRY}/auth-service:${IMAGE_TAG} \
-              -n ${NAMESPACE}
-          else
-            echo "Deployment auth-service not found. Please apply manifests first."
-            echo "Run: kubectl apply -f k8s/generated/base/ -n ${NAMESPACE}"
-          fi
-          
-          if kubectl get deployment event-service -n ${NAMESPACE} &>/dev/null; then
-            kubectl set image deployment/event-service \
-              event-service=${ECR_REGISTRY}/event-service:${IMAGE_TAG} \
-              -n ${NAMESPACE}
-          else
-            echo "Deployment event-service not found. Please apply manifests first."
-          fi
-          
-          if kubectl get deployment booking-service -n ${NAMESPACE} &>/dev/null; then
-            kubectl set image deployment/booking-service \
-              booking-service=${ECR_REGISTRY}/booking-service:${IMAGE_TAG} \
-              -n ${NAMESPACE}
-          else
-            echo "Deployment booking-service not found. Please apply manifests first."
-          fi
-          
-          if kubectl get deployment frontend -n ${NAMESPACE} &>/dev/null; then
-            kubectl set image deployment/frontend \
-              frontend=${ECR_REGISTRY}/frontend:${IMAGE_TAG} \
-              -n ${NAMESPACE}
-          else
-            echo "Deployment frontend not found. Please apply manifests first."
-          fi
+          helm upgrade --install auth-service ./helm/auth-service \
+            --namespace ${NAMESPACE} \
+            --set image.repository=${ECR_REGISTRY}/auth-service \
+            --set image.tag=${IMAGE_TAG} \
+            --set namespace=${NAMESPACE} \
+            --wait --timeout=5m
 
-      - name: Wait for auth-service rollout
+      - name: Deploy event-service with Helm
         run: |
           NAMESPACE="${{ steps.set-namespace.outputs.namespace }}"
-          kubectl rollout status deployment/auth-service -n ${NAMESPACE} --timeout=5m
-
-      - name: Wait for event-service rollout
-        run: |
-          NAMESPACE="${{ steps.set-namespace.outputs.namespace }}"
-          kubectl rollout status deployment/event-service -n ${NAMESPACE} --timeout=5m
-
-      - name: Wait for booking-service rollout
-        run: |
-          NAMESPACE="${{ steps.set-namespace.outputs.namespace }}"
-          kubectl rollout status deployment/booking-service -n ${NAMESPACE} --timeout=5m
-
-      - name: Wait for frontend rollout
-        run: |
-          NAMESPACE="${{ steps.set-namespace.outputs.namespace }}"
-          kubectl rollout status deployment/frontend -n ${NAMESPACE} --timeout=5m
-
-      - name: Verify pods are running
-        run: |
-          NAMESPACE="${{ steps.set-namespace.outputs.namespace }}"
-          echo "Checking pod status in namespace: ${NAMESPACE}"
-          kubectl get pods -n ${NAMESPACE}
+          IMAGE_TAG="${{ steps.set-tag.outputs.tag }}"
+          ECR_REGISTRY="${{ steps.get-account-id.outputs.ecr-registry }}"
           
-          kubectl wait --for=condition=ready pod \
-            -l app=auth-service -n ${NAMESPACE} --timeout=2m || true
-          kubectl wait --for=condition=ready pod \
-            -l app=event-service -n ${NAMESPACE} --timeout=2m || true
-          kubectl wait --for=condition=ready pod \
-            -l app=booking-service -n ${NAMESPACE} --timeout=2m || true
-          kubectl wait --for=condition=ready pod \
-            -l app=frontend -n ${NAMESPACE} --timeout=2m || true
+          echo "Deploying event-service to namespace: ${NAMESPACE}"
+          echo "Image: ${ECR_REGISTRY}/event-service:${IMAGE_TAG}"
+          
+          helm upgrade --install event-service ./helm/event-service \
+            --namespace ${NAMESPACE} \
+            --set image.repository=${ECR_REGISTRY}/event-service \
+            --set image.tag=${IMAGE_TAG} \
+            --set namespace=${NAMESPACE} \
+            --wait --timeout=5m
+
+      - name: Deploy booking-service with Helm
+        run: |
+          NAMESPACE="${{ steps.set-namespace.outputs.namespace }}"
+          IMAGE_TAG="${{ steps.set-tag.outputs.tag }}"
+          ECR_REGISTRY="${{ steps.get-account-id.outputs.ecr-registry }}"
+          
+          echo "Deploying booking-service to namespace: ${NAMESPACE}"
+          echo "Image: ${ECR_REGISTRY}/booking-service:${IMAGE_TAG}"
+          
+          helm upgrade --install booking-service ./helm/booking-service \
+            --namespace ${NAMESPACE} \
+            --set image.repository=${ECR_REGISTRY}/booking-service \
+            --set image.tag=${IMAGE_TAG} \
+            --set namespace=${NAMESPACE} \
+            --wait --timeout=5m
+
+      - name: Deploy frontend with Helm
+        run: |
+          NAMESPACE="${{ steps.set-namespace.outputs.namespace }}"
+          IMAGE_TAG="${{ steps.set-tag.outputs.tag }}"
+          ECR_REGISTRY="${{ steps.get-account-id.outputs.ecr-registry }}"
+          
+          echo "Deploying frontend to namespace: ${NAMESPACE}"
+          echo "Image: ${ECR_REGISTRY}/frontend:${IMAGE_TAG}"
+          
+          helm upgrade --install frontend ./helm/frontend \
+            --namespace ${NAMESPACE} \
+            --set image.repository=${ECR_REGISTRY}/frontend \
+            --set image.tag=${IMAGE_TAG} \
+            --set namespace=${NAMESPACE} \
+            --wait --timeout=5m
+
+      - name: Verify Helm releases
+        run: |
+          NAMESPACE="${{ steps.set-namespace.outputs.namespace }}"
+          echo "Checking Helm releases in namespace: ${NAMESPACE}"
+          helm list -n ${NAMESPACE}
+          
+          echo "Checking pod status:"
+          kubectl get pods -n ${NAMESPACE} -o wide
+          
+          # Verify all deployments are ready
+          kubectl wait --for=condition=available deployment/auth-service -n ${NAMESPACE} --timeout=2m || true
+          kubectl wait --for=condition=available deployment/event-service -n ${NAMESPACE} --timeout=2m || true
+          kubectl wait --for=condition=available deployment/booking-service -n ${NAMESPACE} --timeout=2m || true
+          kubectl wait --for=condition=available deployment/frontend -n ${NAMESPACE} --timeout=2m || true
 
       - name: Get ingress URL
         id: get-ingress-url
