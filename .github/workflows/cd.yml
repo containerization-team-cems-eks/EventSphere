@@ -263,6 +263,15 @@ jobs:
             --set namespace=${NAMESPACE} \
             --wait --timeout=5m
 
+      - name: Verify rollout status
+        run: |
+          NAMESPACE="${{ steps.set-namespace.outputs.namespace }}"
+          echo "Verifying rollout status for all deployments..."
+          kubectl rollout status deployment/auth-service -n ${NAMESPACE} --timeout=2m
+          kubectl rollout status deployment/event-service -n ${NAMESPACE} --timeout=2m
+          kubectl rollout status deployment/booking-service -n ${NAMESPACE} --timeout=2m
+          kubectl rollout status deployment/frontend -n ${NAMESPACE} --timeout=2m
+
       - name: Verify Helm releases
         run: |
           NAMESPACE="${{ steps.set-namespace.outputs.namespace }}"
