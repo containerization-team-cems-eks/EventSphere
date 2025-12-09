@@ -1,8 +1,8 @@
 name: Security Scan
 
 # This workflow performs security scanning for GitHub Code Scanning integration.
-# Note: Security scanning also runs as part of the CI workflow (ci.yml) for PR validation.
-# This workflow exists to satisfy GitHub Code Scanning configuration requirements.
+# It builds Docker images and scans them with Trivy for vulnerabilities.
+# This workflow also validates that Docker images build successfully (if build fails, scan fails).
 
 on:
   pull_request:

@@ -90,51 +90,6 @@ jobs:
         working-directory: ./frontend
         run: npm run build || echo "Build check completed"
 
-  docker-build:
-    name: Docker Build Validation
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        service:
-          - name: auth-service
-            path: ./services/auth-service
-            image: auth-service
-          - name: event-service
-            path: ./services/event-service
-            image: event-service
-          - name: booking-service
-            path: ./services/booking-service
-            image: booking-service
-          - name: frontend
-            path: ./frontend
-            image: frontend
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: ${{ matrix.service.path }}
-          file: ${{ matrix.service.path }}/Dockerfile
-          push: false
-          tags: ${{ matrix.service.image }}:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          load: true
-
-      - name: Save image as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-image-${{ matrix.service.name }}
-          path: /tmp
-          retention-days: 1
-        if: always()
-
   k8s-validation:
     name: Kubernetes Manifest Validation
     runs-on: ubuntu-latest

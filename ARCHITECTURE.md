@@ -235,7 +235,7 @@ All services have HPA configured based on:
 
 ### GitHub Actions Workflows
 
-**CI Workflow (`ci.yml`):** Code Quality → Docker Build → Kubernetes Validation → Helm Validation → Kyverno Policy Check
+**CI Workflow (`ci.yml`):** Code Quality → Kubernetes Validation → Helm Validation → Kyverno Policy Check
 
 **Security Scan Workflow (`security-scan.yml`):** Docker Build & Scan (runs in parallel with CI for GitHub Code Scanning)
 
@@ -247,9 +247,6 @@ All services have HPA configured based on:
      - Runs tests for all services (auth, event, booking, frontend)
      - Lints code with ESLint
      - Builds frontend to verify compilation
-   - **Docker Build Job**:
-     - Builds all service images to validate they build successfully
-     - Does not push images (validation only)
    - **Kubernetes Validation Job**:
      - Generates Kubernetes manifests from templates
      - Validates with kube-linter (v0.6.5) for best practices
@@ -266,10 +263,11 @@ All services have HPA configured based on:
    - Runs on pull requests and pushes to main branch (in parallel with CI)
    - **Security Scan Job**:
      - Builds Docker images for all services (auth-service, event-service, booking-service, frontend)
+     - Validates that images build successfully (build failure blocks PR)
      - Scans images with Trivy for vulnerabilities
      - Uploads scan results to GitHub Security tab via SARIF
-   - **Purpose**: Standalone workflow for GitHub Code Scanning integration
-   - Note: Runs in parallel with CI to avoid duplication while ensuring GitHub Code Scanning recognition
+   - **Purpose**: Docker build validation and security scanning for GitHub Code Scanning integration
+   - Note: Runs in parallel with CI - handles both build validation and security scanning
 
 3. **CD Pipeline** (`cd.yml`) - **For Main Branch Deployment**
    - Runs on push to `main` branch or manual workflow dispatch
