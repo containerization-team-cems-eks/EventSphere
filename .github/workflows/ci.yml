@@ -2,7 +2,7 @@ name: CI
 
 on:
   pull_request:
-
+  workflow_dispatch:
 env:
   NODE_VERSION: '25.1.0'
 
@@ -45,43 +45,38 @@ jobs:
       - name: Run auth-service tests
         working-directory: ./services/auth-service
         run: npm test
-        continue-on-error: true
 
       - name: Run event-service tests
         working-directory: ./services/event-service
         run: npm test
-        continue-on-error: true
 
       - name: Run booking-service tests
         working-directory: ./services/booking-service
         run: npm test
-        continue-on-error: true
 
       - name: Run frontend tests
         working-directory: ./frontend
-        run: npm test -- --watchAll=false --coverage
-        continue-on-error: true
+        env:
+          CI: true
+        run: npm test
 
       - name: Lint auth-service
         working-directory: ./services/auth-service
         run: |
           npm install --save-dev eslint || true
           npx eslint src/ || echo "No ESLint config found, skipping"
-        continue-on-error: true
 
       - name: Lint event-service
         working-directory: ./services/event-service
         run: |
           npm install --save-dev eslint || true
           npx eslint src/ || echo "No ESLint config found, skipping"
-        continue-on-error: true
 
       - name: Lint booking-service
         working-directory: ./services/booking-service
         run: |
           npm install --save-dev eslint || true
           npx eslint src/ || echo "No ESLint config found, skipping"
-        continue-on-error: true
 
       - name: Lint frontend
         working-directory: ./frontend
@@ -114,7 +109,6 @@ jobs:
         run: |
           echo "Linting Kubernetes manifests in k8s/generated/base/"
           kube-linter lint k8s/generated/base/ || echo "Kube-linter found issues (non-blocking)"
-        continue-on-error: true
 
       - name: Install kube-score
         run: |
@@ -126,7 +120,6 @@ jobs:
         run: |
           echo "Scoring Kubernetes manifests in k8s/generated/base/"
           kube-score score k8s/generated/base/*.yaml || echo "Kube-score found issues (non-blocking)"
-        continue-on-error: true
 
   docker-build-scan:
     name: Docker Build & Security Scan
@@ -194,7 +187,6 @@ jobs:
   helm-validation:
     name: Helm Chart Validation
     runs-on: ubuntu-latest
-    continue-on-error: true
 
     steps:
       - name: Checkout code
@@ -218,7 +210,6 @@ jobs:
           else
             echo "No Helm charts directory found, skipping validation"
           fi
-        continue-on-error: true
 
   kyverno-policy-check:
     name: Kyverno Policy Check

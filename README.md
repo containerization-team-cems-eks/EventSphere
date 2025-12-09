@@ -54,6 +54,8 @@ EventSphere/
 │   └── workflows/               # GitHub Actions
 │       ├── ci.yml               # CI pipeline (Code Quality, K8s Validation, Security Scans)
 │       └── cd.yml               # CD pipeline (Build, Push, Sign, Deploy to EKS)
+│   ├── CODEOWNERS               # Defines codeowners
+│   └── PULL_REQUEST_TEMPLATE.md # Template for PR Descriptions
 └── README.md
 ```
 
