@@ -90,6 +90,51 @@ jobs:
         working-directory: ./frontend
         run: npm run build || echo "Build check completed"
 
+  docker-build:
+    name: Docker Build Validation
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - name: auth-service
+            path: ./services/auth-service
+            image: auth-service
+          - name: event-service
+            path: ./services/event-service
+            image: event-service
+          - name: booking-service
+            path: ./services/booking-service
+            image: booking-service
+          - name: frontend
+            path: ./frontend
+            image: frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.service.path }}
+          file: ${{ matrix.service.path }}/Dockerfile
+          push: false
+          tags: ${{ matrix.service.image }}:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          load: true
+
+      - name: Save image as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image-${{ matrix.service.name }}
+          path: /tmp
+          retention-days: 1
+        if: always()
+
   k8s-validation:
     name: Kubernetes Manifest Validation
     runs-on: ubuntu-latest
@@ -130,69 +175,6 @@ jobs:
           echo "Scoring Kubernetes manifests in k8s/generated/base/"
           kube-score score k8s/generated/base/*.yaml || echo "Kube-score found issues (non-blocking)"
         continue-on-error: true
-
-  docker-build-scan:
-    name: Docker Build & Security Scan
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        service:
-          - name: auth-service
-            path: ./services/auth-service
-            image: auth-service
-          - name: event-service
-            path: ./services/event-service
-            image: event-service
-          - name: booking-service
-            path: ./services/booking-service
-            image: booking-service
-          - name: frontend
-            path: ./frontend
-            image: frontend
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: ${{ matrix.service.path }}
-          file: ${{ matrix.service.path }}/Dockerfile
-          push: false
-          tags: ${{ matrix.service.image }}:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          load: true
-
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ matrix.service.image }}:test
-          format: 'sarif'
-          output: 'trivy-results-${{ matrix.service.name }}.sarif'
-          severity: 'CRITICAL'
-          # Do not fail the build on non-critical vulnerabilities, but still report them.
-          exit-code: '0'
-          hide-progress: true
-          version: 'latest'
-
-      - name: Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: 'trivy-results-${{ matrix.service.name }}.sarif'
-
-      - name: Upload Trivy scan results as artifact
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: trivy-scan-${{ matrix.service.name }}
-          path: trivy-results-${{ matrix.service.name }}.sarif
-          retention-days: 30
 
   helm-validation:
     name: Helm Chart Validation

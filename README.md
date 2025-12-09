@@ -52,7 +52,8 @@ EventSphere/
 │   └── cloudwatch/              # CloudWatch logging
 ├── .github/                     # CI/CD workflows
 │   └── workflows/               # GitHub Actions
-│       ├── ci.yml               # CI pipeline (Code Quality, K8s Validation, Security Scans)
+│       ├── ci.yml               # CI pipeline (Code Quality, K8s Validation, Helm, Kyverno)
+│       ├── security-scan.yml    # Security scanning (Docker image scanning with Trivy)
 │       └── cd.yml               # CD pipeline (Build, Push, Sign, Deploy to EKS)
 └── README.md
 ```
@@ -237,16 +238,23 @@ EventSphere includes automated CI/CD workflows using GitHub Actions following in
 The `ci.yml` workflow runs comprehensive validation checks:
 
 ```
-Code Quality → Kubernetes Validation → Docker Build & Scan → Helm Validation → Kyverno Policy Check
+Code Quality → Docker Build → Kubernetes Validation → Helm Validation → Kyverno Policy Check
 ```
 
 - **Code Quality**: Runs tests and linting for all services
+- **Docker Build**: Builds all service images to validate they build successfully (does not push)
 - **Kubernetes Validation**: Generates manifests and validates with kube-linter and kube-score
-- **Docker Build & Scan**: Builds images and scans with Trivy for vulnerabilities
 - **Helm Validation**: Validates Helm charts
 - **Kyverno Policy Check**: Validates manifests against security policies
 - All checks must pass before PR can be merged
 - Fast feedback with parallel job execution where possible
+
+**Security Scan Workflow** (`security-scan.yml`) runs in parallel:
+
+- Standalone workflow for GitHub Code Scanning integration
+- Builds Docker images and scans with Trivy for vulnerabilities
+- Uploads results to GitHub Security tab via SARIF
+- Ensures GitHub Code Scanning recognizes the security configuration
 
 #### On Main Branch (Continuous Deployment)
 
@@ -257,6 +265,7 @@ Build & Push Images → Deploy to EKS → Smoke Tests
 ```
 
 - **Build & Push**: Builds Docker images, pushes to ECR, signs with Cosign
+  - Note: Images are rebuilt in CD even though they were built in CI (standard practice for safety)
 - **Deploy**: Verifies image signatures, deploys to EKS with Helm (atomic rollback enabled)
 - **Smoke Tests**: Validates deployment health
 - Automatic deployment to staging on push to main
@@ -267,14 +276,13 @@ Build & Push Images → Deploy to EKS → Smoke Tests
 1. **CI Pipeline** (`ci.yml`) - **For Pull Requests and Feature Branches**
    - Runs on pull requests and pushes to `feature/**` and `fix/**` branches
    - **Code Quality Job**: Tests and linting for all services
+   - **Docker Build Job**:
+     - Builds all service images to validate they build successfully
+     - Does not push images (validation only)
    - **Kubernetes Validation Job**:
      - Generates Kubernetes manifests from templates
      - Validates with kube-linter (v0.6.5)
      - Scores with kube-score (v1.18.0)
-   - **Docker Build & Scan Job**:
-     - Builds all service images
-     - Scans with Trivy for vulnerabilities
-     - Uploads results to GitHub Security tab
    - **Helm Validation Job**: Validates Helm charts
    - **Kyverno Policy Check Job**:
      - Validates generated manifests against security policies
@@ -282,7 +290,16 @@ Build & Push Images → Deploy to EKS → Smoke Tests
      - Blocks deployment if policies fail
    - **Purpose**: Comprehensive validation before code reaches main branch
 
-2. **CD Pipeline** (`cd.yml`) - **For Main Branch Deployment**
+2. **Security Scan Pipeline** (`security-scan.yml`) - **For Pull Requests and Main Branch**
+   - Runs on pull requests and pushes to main branch (in parallel with CI)
+   - **Security Scan Job**:
+     - Builds all service images (auth-service, event-service, booking-service, frontend)
+     - Scans with Trivy for vulnerabilities
+     - Uploads results to GitHub Security tab via SARIF
+   - **Purpose**: Standalone workflow for GitHub Code Scanning integration
+   - Note: Runs in parallel with CI to avoid duplication while ensuring GitHub Code Scanning recognition
+
+3. **CD Pipeline** (`cd.yml`) - **For Main Branch Deployment**
    - Runs on push to `main` branch or manual workflow dispatch
    - **Build and Push Job**:
      - Builds Docker images for all services
@@ -325,10 +342,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions.
 ```bash
 # Create a PR - the ci.yml workflow runs automatically:
 # 1. Code Quality → tests and linting
-# 2. Kubernetes Validation → manifest validation
-# 3. Docker Build & Scan → image security scanning
+# 2. Docker Build → validate images build successfully
+# 3. Kubernetes Validation → manifest validation
 # 4. Helm Validation → chart validation
 # 5. Kyverno Policy Check → security policy validation
+# 6. Security Scan (parallel workflow) → Docker image vulnerability scanning
 # All checks must pass before PR can be merged
 ```
 

@@ -235,7 +235,9 @@ All services have HPA configured based on:
 
 ### GitHub Actions Workflows
 
-**CI Workflow (`ci.yml`):** Code Quality → Kubernetes Validation → Docker Build & Scan → Helm Validation → Kyverno Policy Check
+**CI Workflow (`ci.yml`):** Code Quality → Docker Build → Kubernetes Validation → Helm Validation → Kyverno Policy Check
+
+**Security Scan Workflow (`security-scan.yml`):** Docker Build & Scan (runs in parallel with CI for GitHub Code Scanning)
 
 **CD Workflow (`cd.yml`):** Build & Push → Deploy to EKS → Smoke Tests
 
@@ -245,14 +247,13 @@ All services have HPA configured based on:
      - Runs tests for all services (auth, event, booking, frontend)
      - Lints code with ESLint
      - Builds frontend to verify compilation
+   - **Docker Build Job**:
+     - Builds all service images to validate they build successfully
+     - Does not push images (validation only)
    - **Kubernetes Validation Job**:
      - Generates Kubernetes manifests from templates
      - Validates with kube-linter (v0.6.5) for best practices
      - Scores with kube-score (v1.18.0) for security and reliability
-   - **Docker Build & Scan Job**:
-     - Builds Docker images for all services
-     - Scans images with Trivy for vulnerabilities
-     - Uploads scan results to GitHub Security tab
    - **Helm Validation Job**:
      - Validates Helm charts for syntax and best practices
    - **Kyverno Policy Check Job**:
@@ -261,7 +262,16 @@ All services have HPA configured based on:
      - Enforces security policies (non-root, resource limits, etc.)
      - Blocks deployment if validation fails
 
-2. **CD Pipeline** (`cd.yml`) - **For Main Branch Deployment**
+2. **Security Scan Pipeline** (`security-scan.yml`) - **For Pull Requests and Main Branch**
+   - Runs on pull requests and pushes to main branch (in parallel with CI)
+   - **Security Scan Job**:
+     - Builds Docker images for all services (auth-service, event-service, booking-service, frontend)
+     - Scans images with Trivy for vulnerabilities
+     - Uploads scan results to GitHub Security tab via SARIF
+   - **Purpose**: Standalone workflow for GitHub Code Scanning integration
+   - Note: Runs in parallel with CI to avoid duplication while ensuring GitHub Code Scanning recognition
+
+3. **CD Pipeline** (`cd.yml`) - **For Main Branch Deployment**
    - Runs on push to `main` branch or manual workflow dispatch
    - **Build and Push Job**:
      - Builds Docker images for all services
