@@ -10,7 +10,7 @@ repos:
     rev: v4.0.0-alpha.8
     hooks:
       - id: prettier
-        types_or: [javascript, jsx, json, yaml, markdown, css, scss]
+        files: \.(js|jsx|json|yaml|yml|md|css|scss)$
         exclude: ^(.*\.template|.*generated.*|package-lock\.json|.*\.min\.js)
         args: [--no-error-on-unmatched-pattern]
 
